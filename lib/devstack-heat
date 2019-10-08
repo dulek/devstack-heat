@@ -1,0 +1,49 @@
+#!/bin/bash
+
+function sub_getkey() {
+    local deployment
+    deployment=${1:-master_}
+    if [[ "${deployment}" == "master_" ]]; then
+        (>&2 echo "You must put the whole stack name for getting the key")
+        exit 1
+    fi
+
+    openstack stack output show "${deployment}" master_key_priv -f json | jq -r '.output_value'
+}
+
+function _wait_for_after_in_progress() {
+    local deployment
+    local status
+    deployment="$1"
+
+    while true; do
+        status=$(openstack stack show "${deployment}" -c stack_status -f value)
+        if [[ ! "$status" =~ IN_PROGRESS$ ]]; then
+            break
+        fi
+    done
+}
+
+function sub_ssh() {
+    local deployment
+    local key
+    local fip
+
+    deployment=${1}
+    shift
+    key="${deployment}.pem"
+    fip=$(openstack stack output show "${deployment}" node_fips -f json | jq -r '.output_value' | jq -r '.[]?' | xargs echo)
+    sub_getkey "${deployment}" > "${key}"
+    chmod 0600 "${key}"
+
+    # shellcheck disable=SC2029
+    ssh -i "${deployment}.pem"  -o "StrictHostKeyChecking no" "stack@${fip}" "$@"
+    exit $?
+}
+
+function sub_join() {
+    local deployment
+
+    deployment=${1}
+    sub_ssh $deployment tail -f /opt/stack/devstack.log
+}

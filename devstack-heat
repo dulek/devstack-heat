@@ -1,0 +1,143 @@
+#!/bin/bash
+set -ex
+
+CURR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# shellcheck disable=SC1091
+# shellcheck source=lib/devstack-heat
+source "${CURR_DIR}/lib/devstack-heat"
+
+function sub_stack() {
+    local deployment
+    local environment
+    local key
+    local parameters
+    local positional
+    local join
+
+    parameters=()
+    positional=()
+    while [[ $# -gt 0 ]]; do
+        key="$1"
+        case $key in
+            -e|--environment)
+                environment="$2"
+                shift
+                shift
+                ;;
+            --parameter)
+                parameters+=("$key=$2")
+                shift
+                shift
+                ;;
+            --local-conf)
+                parameters+=("--parameter=local_conf=$2")
+                shift
+                shift
+                ;;
+            --bashrc)
+                parameters+=("--parameter=bashrc=$2")
+                shift
+                shift
+                ;;
+            --gerrit)
+                parameters+=("--parameter=gerrit_change=$2")
+                shift
+                shift
+                ;;
+            --commit)
+                parameters+=("--parameter=commit_hash=$2")
+                shift
+                shift
+                ;;
+            --join)
+                join="true"
+                shift
+                ;;
+            *)
+                positional+=("$1")
+                shift
+                ;;
+        esac
+    done
+    if [[ ${#positional[@]} -eq 0 ]]; then
+        deployment=devstack_stack
+    else
+        deployment="${positional[0]}"
+    fi
+
+    if [[ -z "$environment" ]]; then
+        environment="hot/parameters.yml"
+    fi
+
+    # create stack
+    echo "Stacking..."
+
+    set -- "${parameters[@]}"
+    set -x
+    openstack stack create -e "$environment" -t hot/devstack_heat_template.yml "$@" "$deployment"
+    set +x
+
+    sub_show "$deployment"
+
+    if [[ ! -z $join ]]; then
+        # Whatever, this should be enough
+        sleep 180
+        sub_join $deployment
+    fi
+}
+
+function sub_unstack()
+{
+    local deployment
+    deployment=${1:-master_}
+    if [[ "${deployment}" == "master_" ]]; then
+        (>&2 echo "You must put the whole stack name for unstacking")
+        exit 1
+    fi
+
+    openstack stack delete -y "$deployment"
+}
+
+function sub_show() {
+    local deployment
+    deployment=${1:-master_}
+    if [[ "${deployment}" == "master_" ]]; then
+        (>&2 echo "You must put the whole stack name for showing the stack")
+        exit 1
+    fi
+
+    _wait_for_after_in_progress "${1:-master_}"
+    echo "VM subnet:     $(openstack stack output show "${deployment}" vm_subnet -f json | jq -r '.output_value')"
+    echo "Nodes FIPs:    $(openstack stack output show "${deployment}" node_fips -f json | jq -r '.output_value' | jq -r '.[]?' | xargs echo)"
+    printf "\n"
+}
+
+function sub_help() {
+    local myname
+    myname=$(basename "$0")
+
+    printf "Usage: %s <subcommand> [options]\n" "$myname"
+    printf "Subcommands:\n"
+    printf "    stack gerrit_change_number     Create Heat stack\n"
+    printf "    unstack my_stack_name   Delete Heat stack\n"
+    printf "    show my_stack_name      Show important info about the deployed Heat stack\n"
+    printf "    getkey my_stack_name    Output the Heat stack instances privkey to stdout\n"
+    printf "    ssh my_stack_name       gets the key and sshs into the stack user of the Stack\n"
+}
+
+command=$1
+case $command in
+    "" | "-h" | "--help")
+        sub_help
+        ;;
+    *)
+        shift
+        "sub_${command}" "$@"
+        if [ $? = 127 ]; then
+            echo "Error: '$command' is not a known $(basename "$0") command." >&2
+            echo "       Run \'$(basename "$0")  --help\' for a list of known subcommands." >&2
+            exit 1
+        fi
+        ;;
+esac

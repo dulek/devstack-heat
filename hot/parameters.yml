@@ -1,0 +1,11 @@
+parameter_defaults:
+  image: Ubuntu18.04
+  flavor: m1.xlarge
+  public_net: 316eeb47-1498-46b4-b39e-00ddf73bd2a5
+  vm_net_cidr: 10.11.0.0/24
+  vm_net_gateway: 10.11.0.1
+  node_num: 1
+
+resource_registry:
+  OS::Kuryr::DevstackNetworking: networking_deployment.yaml
+  OS::Kuryr::DevstackNode: node.yaml
