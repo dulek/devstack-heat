@@ -50,6 +50,11 @@ function sub_stack() {
                 shift
                 shift
                 ;;
+            --branch)
+                parameters+=("--parameter=branch=$2")
+                shift
+                shift
+                ;;
             --join)
                 join="true"
                 shift

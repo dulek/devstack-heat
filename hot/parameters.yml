@@ -1,5 +1,6 @@
 parameter_defaults:
-  image: Ubuntu18.04
+  #image: Ubuntu18.04
+  image: 43103b7d-88c9-4105-ba02-78c9ca4e8858
   flavor: m1.xlarge
   public_net: 316eeb47-1498-46b4-b39e-00ddf73bd2a5
   vm_net_cidr: 10.11.0.0/24

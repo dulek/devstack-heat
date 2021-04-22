@@ -54,6 +54,11 @@ parameters:
     label: bashrc file URL
     description: URL of bashrc file that will be appended for stack user
     default: ""
+  branch:
+    type: string
+    label: Branch which should be deployed
+    description: E.g. master or stable/queens
+    default: ""
 
 resources:
   network:
